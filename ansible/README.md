@@ -16,19 +16,7 @@ state=create|clean
 sql_db_version=1 // optional
 ```
 
-Create development environment:
+Create development environment example:
 ```shell script
 ansible-playbook main.yaml --extra-vars "state=create env=dev project_id=webserver1-283520"
-```
-Clean development environment:
-```shell script
-ansible-playbook main.yaml --extra-vars "state=clean env=dev project_id=webserver1-283520"
-```
-Create production environment:
-```shell script
-ansible-playbook main.yaml --extra-vars "state=create env=prod project_id=einvoice-prod"
-```
-Clean production environment:
-```shell script
-ansible-playbook main.yaml --extra-vars "state=clean env=prod project_id=einvoice-prod"
 ```
