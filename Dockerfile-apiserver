@@ -15,7 +15,7 @@ RUN go mod download
 COPY . .
 
 # Unit tests
-# RUN CGO_ENABLED=0 go test -v ./apiserver
+RUN go test -v ./apiserver
 
 RUN go build -o /tmp/out/apiserver ./apiserver
 
