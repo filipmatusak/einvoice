@@ -1,0 +1,7 @@
+---
+- name: Delete cluster
+  gcp_container_cluster:
+    name: '{{ gke_cluster_name }}'
+    location: '{{ location }}'
+    project: '{{ project_id }}'
+    state: absent

@@ -1,0 +1,77 @@
+---
+- name: Build web-app and push it to a private repo
+  docker_image:
+    build:
+      path: ../
+      dockerfile: Dockerfile-einvoice-web-app
+    name: 'gcr.io/{{ project_id }}/web-app'
+    tag: latest
+    push: yes
+    force: yes
+    source: build
+    state: present
+- name: Create web-app deployment
+  k8s:
+    state: present
+    name: develop
+    api_version: v1
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web-app
+        name: web-app
+        namespace: default
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: web-app
+        template:
+          metadata:
+            labels:
+              app: web-app
+          spec:
+            restartPolicy: Always
+            containers:
+              - name: web-app
+                image: 'gcr.io/{{ project_id }}/web-app:latest'
+                imagePullPolicy: Always
+                env:
+                  - name: API_SERVER_URL
+                    value: 'http://{{ authproxy_loadbalancer_ip }}'
+                ports:
+                  - containerPort: 8081
+- name: Create web-app loadbalancer
+  k8s:
+    state: present
+    name: web-app-loadbalancer
+    api_version: v1
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: web-app
+        name: web-app-loadbalancer
+        namespace: default
+      spec:
+        externalTrafficPolicy: Cluster
+        ports:
+          - port: 80
+            protocol: TCP
+            targetPort: 8081
+        selector:
+          app: web-app
+        sessionAffinity: None
+        type: LoadBalancer
+  register: loadbalancer
+- name: Waiting for web-app loadbalancer ip
+  command: bash -c 'external_ip="<pending>"; while [ $external_ip = "<pending>" ]; do result=$(kubectl get svc web-app-loadbalancer | tail -n1); ip=($result); external_ip=${ip[3]}; [ $external_ip = "<pending>" ] && sleep 5; done; echo $external_ip;'
+  register: webapp_loadbalancer_result
+- set_fact: webapp_loadbalancer_ip="{{ webapp_loadbalancer_result.stdout_lines[0] }}"
+- debug:
+    msg: 'web-app ip: {{ webapp_loadbalancer_ip }}'

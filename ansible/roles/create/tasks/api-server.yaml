@@ -1,0 +1,102 @@
+---
+- service: name=docker state=started
+
+- name: Docker Login
+  docker_login:
+    registry: 'gcr.io/{{ project_id }}/apiserver'
+    username: _json_key
+    debug: true
+    password: '{{ docker_password }}'
+
+- name: Build apiserver and push it to a private repo
+  docker_image:
+    build:
+      path: ../
+      dockerfile: Dockerfile-apiserver
+    name: 'gcr.io/{{ project_id }}/apiserver'
+    tag: latest
+    push: yes
+    force: yes
+    source: build
+    state: present
+
+- name: Create apiserver deployment
+  k8s:
+   state: present
+   name: apiserver
+   api_version: v1
+   definition:
+     apiVersion: apps/v1
+     kind: Deployment
+     metadata:
+       labels:
+         app: apiserver
+       name: apiserver
+       namespace: default
+     spec:
+       replicas: 1
+       strategy:
+         type: Recreate
+       selector:
+         matchLabels:
+           app: apiserver
+       template:
+         metadata:
+           labels:
+             app: apiserver
+         spec:
+           restartPolicy: Always
+           containers:
+             - name: apiserver
+               image: 'gcr.io/{{ project_id }}/apiserver:latest'
+               imagePullPolicy: Always
+               env:
+                 - name: SLOW_STORAGE_TYPE
+                   value: gcs
+                 - name: GCS_BUCKET
+                   value: '{{ storage_instance_name }}'
+                 - name: DB_HOST
+                   value: 127.0.0.1
+                 - name: DB_PORT
+                   value: "5432"
+                 - name: DB_USER
+                   value: '{{ sql_instance.db_user }}'
+                 - name: DB_PASSWORD
+                   value: '{{ sql_instance.db_password }}'
+                 - name: DB_NAME
+                   value: '{{ sql_instance.db_name }}'
+                 - name: D16B_XSD_PATH
+                   value: xml/d16b/xsd
+                 - name: UBL21_XSD_PATH
+                   value: xml/ubl21/xsd
+               ports:
+                 - containerPort: 8080
+             - name: cloud-sql-proxy
+               image: gcr.io/cloudsql-docker/gce-proxy:1.17
+               command:
+                 - "/cloud_sql_proxy"
+                 - '-instances={{sql_instance_res.connectionName}}=tcp:5432'
+               securityContext:
+                 runAsNonRoot: true
+- name: Create apiserver loadbalancer
+  k8s:
+   state: present
+   name: apiserver-loadbalancer
+   api_version: v1
+   definition:
+     apiVersion: v1
+     kind: Service
+     metadata:
+       labels:
+         app: apiserver
+       name: apiserver-loadbalancer
+       namespace: default
+     spec:
+       ports:
+         - port: 80
+           protocol: TCP
+           targetPort: 8080
+       selector:
+         app: apiserver
+       type: ClusterIP
+  register: apiserver_service

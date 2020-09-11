@@ -1,0 +1,31 @@
+---
+- name: Create sql instance
+  gcp_sql_instance:
+    name: '{{ sql_instance_name }}'
+    backend_type: '{{ sql_instance.backend_type }}'
+    database_version: '{{ sql_instance.database_version }}'
+    settings:
+      tier: '{{ sql_instance.tier }}'
+    region: '{{ location }}'
+    project: '{{ project_id }}'
+    state: present
+  register: sql_instance_res
+
+- name: Create database
+  ignore_errors: yes
+  gcp_sql_database:
+    name: '{{ sql_instance.db_name }}'
+    charset: utf8
+    instance: "{{ sql_instance_res.name }}"
+    project: '{{ project_id }}'
+    state: present
+
+- name: Create a user
+  ignore_errors: yes
+  gcp_sql_user:
+    name: '{{ sql_instance.db_user }}'
+    host: '{{ sql_instance_res.ipAddresses[0].ipAddress }}'
+    password: '{{ sql_instance.db_password }}'
+    instance: "{{ sql_instance_res }}"
+    project: '{{ project_id }}'
+    state: present

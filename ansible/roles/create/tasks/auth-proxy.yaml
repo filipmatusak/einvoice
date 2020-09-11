@@ -1,0 +1,81 @@
+---
+- service: name=docker state=started
+
+- name: Build authproxy and push it to a private repo
+  docker_image:
+    build:
+      path: ../
+      dockerfile: Dockerfile-authproxy
+    name: 'gcr.io/{{ project_id }}/authproxy'
+    tag: latest
+    push: yes
+    force: yes
+    source: build
+    state: present
+- name: Create authproxy deployment
+  k8s:
+    state: present
+    name: authproxy
+    api_version: v1
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: authproxy
+        name: authproxy
+        namespace: default
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: authproxy
+        template:
+          metadata:
+            labels:
+              app: authproxy
+          spec:
+            restartPolicy: Always
+            containers:
+              - name: authproxy
+                image: 'gcr.io/{{ project_id }}/authproxy:latest'
+                imagePullPolicy: Always
+                env:
+                  - name: APISERVER_URL
+                    value: 'http://{{apiserver_service.result.spec.clusterIP}}:80'
+                  - name: REDIS_URL
+                    value: '{{redis.host}}:{{redis.port}}'
+                ports:
+                  - containerPort: 8082
+- name: Create authproxy loadbalancer
+  k8s:
+    state: present
+    name: authproxy-loadbalancer
+    api_version: v1
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: authproxy
+        name: authproxy-loadbalancer
+        namespace: default
+      spec:
+        externalTrafficPolicy: Cluster
+        ports:
+          - port: 80
+            protocol: TCP
+            targetPort: 8082
+        selector:
+          app: authproxy
+        sessionAffinity: None
+        type: LoadBalancer
+  register: authproxy_service
+- name: Waiting for authproxy loadbalancer ip
+  command: bash -c 'external_ip="<pending>"; while [ $external_ip = "<pending>" ]; do result=$(kubectl get svc authproxy-loadbalancer | tail -n1); ip=($result); external_ip=${ip[3]}; [ $external_ip = "<pending>" ] && sleep 5; done; echo $external_ip;'
+  register: result
+- set_fact: authproxy_loadbalancer_ip="{{ result.stdout_lines[0] }}"
+- debug:
+    msg: 'proxy ip: {{ authproxy_loadbalancer_ip }}'

@@ -1,0 +1,5 @@
+---
+storage_instance_name: einvoice-prod
+sql_instance_name: "einvoice-prod-{{ sql_db_version | default('1')}}"
+gke_cluster_name: einvoice-prod
+redis_instance_name: einvocie-prod

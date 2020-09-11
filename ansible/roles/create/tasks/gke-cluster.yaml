@@ -1,0 +1,35 @@
+---
+- name: Create cluster
+  gcp_container_cluster:
+    name: '{{ gke_cluster_name }}'
+    initial_node_count: 1
+    master_auth:
+      username: cluster_admin
+      password: my-secret-password
+    location: '{{ location }}'
+    project: '{{ project_id }}'
+    ip_allocation_policy:
+      use_ip_aliases: yes
+    state: present
+  register: cluster
+
+- name: Setup kubect
+  command: gcloud container clusters get-credentials '{{ gke_cluster_name }}' --region us-west1 --project '{{ project_id }}'
+
+- name: Create node pool
+  gcp_container_node_pool:
+    name: '{{ gke_cluster_name }}-node-pool'
+    initial_node_count: 1
+    cluster: "{{ cluster }}"
+    location: '{{ location }}'
+    project: '{{ project_id }}'
+    config:
+      oauth_scopes: [
+        'https://www.googleapis.com/auth/devstorage.read_write',
+        'https://www.googleapis.com/auth/sqlservice.admin'
+      ]
+      machine_type: n1-standard-4
+      disk_size_gb: 500
+    state: present
+    autoscaling:
+      enabled: no

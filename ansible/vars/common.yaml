@@ -1,0 +1,11 @@
+---
+location: us-west1
+sql_instance:
+  backend_type: SECOND_GEN
+  database_version: POSTGRES_12
+  tier: db-g1-small
+  db_user: einvoice
+  db_password: 12345
+  db_name: einvoice
+service_account_file: "{{ lookup('env', 'GCP_SERVICE_ACCOUNT_FILE') }}"
+docker_password: " {{ lookup('file', '{{ service_account_file }}' ) }}"

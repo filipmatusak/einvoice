@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS meta (
+	id SERIAL PRIMARY KEY,
+	sender VARCHAR ( 50 ) NOT NULL,
+	receiver VARCHAR ( 50 ) NOT NULL,
+	format VARCHAR ( 50 ) NOT NULL,
+	price DECIMAL NOT NULL
+);

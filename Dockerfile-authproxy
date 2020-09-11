@@ -1,0 +1,30 @@
+FROM golang:1.13-alpine AS build_base
+
+RUN apk add --no-cache git
+
+# Set the Current Working Directory inside the container
+WORKDIR /tmp/einvoice
+
+# Populate the module cache based on the go.{mod,sum} files.
+COPY go.mod .
+COPY go.sum .
+
+RUN go mod download
+
+COPY . .
+
+# Unit tests
+RUN CGO_ENABLED=0 go test -v ./authproxy
+
+RUN go build -o /tmp/out/authproxy ./authproxy
+
+# Start fresh from a smaller image
+FROM alpine:3.9
+RUN apk add ca-certificates
+
+COPY --from=build_base /tmp/out/authproxy /app/authproxy
+
+# This container exposes port 8082 to the outside world
+EXPOSE 8082
+
+CMD ["/app/authproxy"]
